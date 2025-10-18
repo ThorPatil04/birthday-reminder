@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Birthday Reminder Calendar</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f4f4f4;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      max-width: 500px;
+      margin: 20px auto;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .day {
+      padding: 10px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    .birthday {
+      background: #ffeb3b;
+      font-weight: bold;
+    }
+    .today {
+      border: 2px solid red;
+    }
+    #reminder {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: green;
+    }
+    #upcoming {
+      margin-top: 20px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: left;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    #upcoming h2 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .birthday-item {
+      margin: 5px 0;
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎂 Birthday Reminder Calendar</h1>
+
+  <!-- Birthday Input -->
+  <div>
+    <input type="date" id="birthdayDate">
+    <input type="text" id="name" placeholder="Enter name">
+    <button onclick="addBirthday()">Add Birthday</button>
+  </div>
+
+  <!-- Calendar -->
+  <div class="calendar" id="calendar"></div>
+
+  <!-- Reminder for today -->
+  <div id="reminder"></div>
+
+  <!-- Upcoming birthdays -->
+  <div id="upcoming">
+    <h2>📅 Upcoming Birthdays</h2>
+    <div id="upcomingList"></div>
+  </div>
+
+<script>
+  const calendar = document.getElementById("calendar");
+  const reminder = document.getElementById("reminder");
+  const upcomingList = document.getElementById("upcomingList");
+  const birthdays = JSON.parse(localStorage.getItem("birthdays")) || {};
+
+  const today = new Date();
+  const month = today.getMonth();
+  const year = today.getFullYear();
+
+  function generateCalendar() {
+    calendar.innerHTML = "";
+    let firstDay = new Date(year, month, 1).getDay();
+    let daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+      calendar.innerHTML += `<div></div>`;
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      let classes = "day";
+      let text = day;
+
+      if (birthdays[dateStr]) {
+        classes += " birthday";
+        text += " 🎉";
+      }
+      if (day === today.getDate()) {
+        classes += " today";
+      }
+
+      calendar.innerHTML += `<div class="${classes}">${text}</div>`;
+    }
+  }
+
+  function addBirthday() {
+    const date = document.getElementById("birthdayDate").value;
+    const name = document.getElementById("name").value;
+
+    if (date && name) {
+      birthdays[date] = name;
+      localStorage.setItem("birthdays", JSON.stringify(birthdays));
+      generateCalendar();
+      checkReminders();
+      showUpcoming();
+      alert("Birthday added!");
+    }
+  }
+
+  function checkReminders() {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    if (birthdays[todayStr]) {
+      const message = `🎂 Today is ${birthdays[todayStr]}'s Birthday!`;
+      reminder.textContent = message;
+
+      // Alert popup
+      alert(message);
+
+      // Browser Notification
+      if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+          new Notification("🎂 Birthday Reminder", { body: message });
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+              new Notification("🎂 Birthday Reminder", { body: message });
+            }
+          });
+        }
+      }
+    } else {
+      reminder.textContent = "";
+    }
+  }
+
+  function showUpcoming() {
+    upcomingList.innerHTML = "";
+    let upcoming = [];
+
+    for (let date in birthdays) {
+      let bday = new Date(date);
+
+      let nextBday = new Date(year, bday.getMonth(), bday.getDate());
+      if (nextBday < today) {
+        nextBday.setFullYear(year + 1);
+      }
+
+      upcoming.push({ date: nextBday, name: birthdays[date] });
+    }
+
+    upcoming.sort((a, b) => a.date - b.date);
+
+    if (upcoming.length === 0) {
+      upcomingList.innerHTML = "<p>No upcoming birthdays.</p>";
+    } else {
+      upcoming.forEach(item => {
+        upcomingList.innerHTML += `<div class="birthday-item">🎉 ${item.name} → ${item.date.toDateString()}</div>`;
+      });
+    }
+  }
+
+  // ⏰ Schedule daily birthday check at 9 AM
+  function scheduleDailyCheck() {
+    const now = new Date();
+    const nextCheck = new Date();
+
+    nextCheck.setHours(9, 0, 0, 0); // Today 9:00 AM
+    if (now > nextCheck) {
+      nextCheck.setDate(nextCheck.getDate() + 1); // If past 9 AM, schedule for tomorrow
+    }
+
+    const timeout = nextCheck.getTime() - now.getTime();
+
+    setTimeout(() => {
+      checkReminders(); // Run at 9 AM
+      setInterval(checkReminders, 24 * 60 * 60 * 1000); // Repeat daily
+    }, timeout);
+  }
+
+  // Initial load
+  generateCalendar();
+  checkReminders();
+  showUpcoming();
+  scheduleDailyCheck();
+</script>
+</body>
+</html>
